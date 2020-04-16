@@ -1048,7 +1048,7 @@ public class MaskFromAnnotations {
 
 		Options options = new Options();
 
-		Option inputJson = new Option("ij", "inputjson", true, "input json folder");
+		Option inputJson = new Option("ij", "inputannotations", true, "input json folder");
 		inputJson.setRequired(true);
 		options.addOption(inputJson);
 		
@@ -1056,7 +1056,7 @@ public class MaskFromAnnotations {
 		inputRaw.setRequired(true);
 		options.addOption(inputRaw);
 		
-		Option inputSV = new Option("sv", "stitchingvectorfolder", true, "stitching vector folder");
+		Option inputSV = new Option("sv", "stitchingvector", true, "stitching vector folder");
 		inputSV.setRequired(true);
 		options.addOption(inputSV);
 
@@ -1064,7 +1064,7 @@ public class MaskFromAnnotations {
 		uniqueTypeOpt.setRequired(true);
 		options.addOption(uniqueTypeOpt);
 		
-		Option combineAU = new Option("c", "combineallunqiue", true, "combine all unique");
+		Option combineAU = new Option("c", "combineallunique", true, "combine all unique");
 		combineAU.setRequired(true);
 		options.addOption(combineAU);
 
@@ -1086,11 +1086,11 @@ public class MaskFromAnnotations {
 			return;
 		}
 
-		String inputJSONFileFolder = cmd.getOptionValue("inputjson");
+		String inputJSONFileFolder = cmd.getOptionValue("inputannotations");
 		String inputRawFileFolder = cmd.getOptionValue("inputrawimages");
-		String inputStitchingFileFolder = cmd.getOptionValue("stitchingvectorfolder");
+		String inputStitchingFileFolder = cmd.getOptionValue("stitchingvector");
 		String uniqueTypeStr = cmd.getOptionValue("uniquetype");
-		String combineAllUniqueStr = cmd.getOptionValue("combineallunqiue");
+		String combineAllUniqueStr = cmd.getOptionValue("combineallunique");
 		String outFileFolder = cmd.getOptionValue("outputmasks");
 		
 		int uniqueType = Integer.parseInt(uniqueTypeStr);
