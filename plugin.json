@@ -1,0 +1,87 @@
+{
+	"name": "WIPP Annotations to masks plugin",
+	"version": "0.0.1",
+	"containerId": "wipp/wipp-annotations2masks-plugin:0.0.1",
+	"title": "WIPP  Annotations to masks",
+	"description": " Annotations to masks using ImageJ Library",
+	"author": "Peter Bajcsy & Mohamed Ouladi",
+	"institution": "National Institute of Standards and Technology",
+	"repository": "https://github.com/usnistgov/WIPP-annotations2masks-plugin",
+	"website": null,
+	"citation": null,
+	"inputs": [
+		{
+			"name": "inputrawimages",
+			"type": "collection",
+            "options": {
+				"format": "tiledtiff"
+			},
+			"description": "Input Raw Images",
+            "required": true
+		},
+        {
+			"name": "stitchingvector",
+			"type": "stitchingVector",
+			"description": "Input Stitching Vector",
+            "required": true
+		},
+		{
+			"name": "inputannotations",
+			"type": "pyramidAnnotation",
+			"description": "Input Pyramid Annotations",
+            "required": true
+		},
+		{
+			"name": "uniquetype",
+			"type": "number",
+			"required": true,
+			"description": "integer defining whether the masks are created by label (1), color (2) or shape (3)"
+		},
+		{
+			"name": "combineallunique",
+			"type": "enum",
+				"options": {
+					"values": [
+						"true",
+						"false"
+					]
+				},
+			"description": "Creates one mask with all unique types of color/label/shape (true) or one mask per of color/label/shape unique type (false)",
+			"required": true,
+			"default": "NO"
+		}
+    ],
+	"outputs": [
+		{
+			"name": "outputmasks",
+			"type": "collection",
+			"description": "Output mask collection"
+		}
+	],
+	"ui": [
+		{
+			"key": "inputs.inputrawimages",
+			"title": "Input Images: ",
+			"description": "Pick a collection..."
+		},
+        {
+			"key": "inputs.stitchingvector",
+			"title": "Input Stitching Vector: ",
+			"description": "Pick a stitching vector..."
+		},
+		{
+			"key": "inputs.inputannotations",
+			"title": "Input Annotations: ",
+			"description": "Pick a pyramid annotation..."
+		},
+		{		
+			"key": "inputs.uniquetype",
+			"title": "Unique Type: "
+		},
+		{
+			"key": "inputs.combineallunique",
+			"title": "Combine All Unique: "
+		}
+
+    ]
+}
