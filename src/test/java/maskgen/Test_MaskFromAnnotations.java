@@ -205,6 +205,13 @@ public class Test_MaskFromAnnotations {
 			directory.mkdir();
 			System.out.println("output annotMask Directory was created: " + annotMaskOutput);
 		}		
+		
+		String metadataOutput = new String(outFileFolder + File.separator + "metadata_files"); 
+		directory=new File(metadataOutput);
+		if(!directory.exists()){
+			directory.mkdir();
+			System.out.println("output annotMask Directory was created: " + metadataOutput);
+		}
 		MaskFromAnnotations myClass = new MaskFromAnnotations();
 		
 		boolean isMappingFixed = false;
@@ -250,7 +257,7 @@ public class Test_MaskFromAnnotations {
 
 		//isMappingFixed = true;
 		
-		ret = ret & myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput );
+		ret = ret & myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput, metadataOutput);
 		if(!ret){
 			fail("failed to create mask images in " + annotMaskOutput);
 			//return false;			

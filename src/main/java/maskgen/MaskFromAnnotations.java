@@ -90,6 +90,9 @@ public class MaskFromAnnotations {
 	private int width;
 	private int height;
 	
+	// input images folder
+	public String inputRawFileFolder;
+	
 	/////////////////////////////////////
 	// getters and setters for the mappings
 	// between unique labels/colors/shapes and their corresponding grayscale mask values
@@ -760,10 +763,10 @@ public class MaskFromAnnotations {
 	 * @throws IOException
 	 * @throws FormatException
 	 */
-	public boolean CMDlaunch(String inputJSONFileFolder, int uniqueType, boolean combineAllUnique, boolean isMappingFixed, String inputRawFileFolder, String outFileFolder ) throws IOException, FormatException{
+	public boolean CMDlaunch(String inputJSONFileFolder, int uniqueType, boolean combineAllUnique, boolean isMappingFixed, String inputRawFileFolder, String outImagesFolder, String outMetadataFolder) throws IOException, FormatException{
 		// sanity check
-		if (inputJSONFileFolder == null || inputRawFileFolder == null || outFileFolder == null) {
-			System.err.println("Error: null inputFileFolder, inputRawFileFolder or outFileFolder ");
+		if (inputJSONFileFolder == null || inputRawFileFolder == null || outImagesFolder == null || outMetadataFolder == null) {
+			System.err.println("Error: null inputFileFolder, inputRawFileFolder or outputImagesFolder ");
 			return false;
 		}
 		if (uniqueType <1 || uniqueType > 3) {
@@ -781,9 +784,14 @@ public class MaskFromAnnotations {
 			System.err.println("Input RAW Directory does not exist: " + inputRawFileFolder);
 			return false;
 		}
-		directory=new File(outFileFolder);
+		directory=new File(outImagesFolder);
 		if(!directory.exists()){
-			System.err.println("output Directory does not exist: " + outFileFolder);
+			System.err.println("output images Directory does not exist: " + outImagesFolder);
+			return false;
+		}
+		directory=new File(outMetadataFolder);
+		if(!directory.exists()){
+			System.err.println("output metadata Directory does not exist: " + outMetadataFolder);
 			return false;
 		}
 		///////////////////////////////////////////////////////////
@@ -871,7 +879,7 @@ public class MaskFromAnnotations {
 				case UNIQUE_TYPE_LABEL:
 					ArrayList<String> uniqueLabels = AnnotationLoader.getUniqueLabels(annotations);
 					if(combineAllUnique){
-						outFileName = new String(outFileFolder + File.separator + maskPreffix + name);
+						outFileName = new String(outImagesFolder + File.separator + maskPreffix + name);
 						convertUniqueLabelsToMask(annotations,uniqueLabels, isMappingFixed, rawFileName, outFileName);
 						strSaveMapping.add(new String(name + ", " + printLabel2grayMapping()) );
 					}else{
@@ -880,7 +888,7 @@ public class MaskFromAnnotations {
 							oneLabel.add(uniqueLabels.get(j));
 							String labelName = uniqueLabels.get(j);
 
-							outFileName = new String(outFileFolder + File.separator + "label" + j + File.separator);
+							outFileName = new String(outImagesFolder + File.separator + "label" + j + File.separator);
 							directory = new File(outFileName);
 							if (!directory.exists()) {
 								directory.mkdir();
@@ -898,7 +906,7 @@ public class MaskFromAnnotations {
 				case UNIQUE_TYPE_COLOR:
 					ArrayList<Color> uniqueColors = AnnotationLoader.getUniqueColors(annotations);
 					if(combineAllUnique){
-						outFileName = new String(outFileFolder + File.separator + maskPreffix + name);
+						outFileName = new String(outImagesFolder + File.separator + maskPreffix + name);
 						convertUniqueColorsToMask(annotations,uniqueColors, isMappingFixed, rawFileName, outFileName);
 						strSaveMapping.add(new String(name + ", " + printColor2grayMapping()) );						
 					}else{
@@ -907,7 +915,7 @@ public class MaskFromAnnotations {
 							oneColor.add(uniqueColors.get(j));
 							String colorName = AnnotationLoader.mapColorValue2ColorName(uniqueColors.get(j));
 
-							outFileName = new String(outFileFolder + File.separator + "color" + j + File.separator);
+							outFileName = new String(outImagesFolder + File.separator + "color" + j + File.separator);
 							directory = new File(outFileName);
 							if (!directory.exists()) {
 								directory.mkdir();
@@ -927,7 +935,7 @@ public class MaskFromAnnotations {
 				case UNIQUE_TYPE_SHAPE:
 					ArrayList<String> uniqueShapes = AnnotationLoader.getUniqueShapes(annotations);
 					if(combineAllUnique){
-						outFileName = new String(outFileFolder + File.separator + maskPreffix + name);
+						outFileName = new String(outImagesFolder + File.separator + maskPreffix + name);
 						convertUniqueShapesToMask(annotations,uniqueShapes, isMappingFixed, rawFileName, outFileName);
 						strSaveMapping.add(new String(name + ", " + printShape2grayMapping()) );
 					}else{
@@ -936,7 +944,7 @@ public class MaskFromAnnotations {
 							oneShape.add(uniqueShapes.get(j));
 							String shapeName = uniqueShapes.get(j);
 
-							outFileName = new String(outFileFolder + File.separator + "shape" + j + File.separator);
+							outFileName = new String(outImagesFolder + File.separator + "shape" + j + File.separator);
 							directory = new File(outFileName);
 							if (!directory.exists()) {
 								directory.mkdir();
@@ -957,7 +965,7 @@ public class MaskFromAnnotations {
 
 		}
 		// save the mappings
-		outFileName = new String(outFileFolder + File.separator + "mappings.csv");
+		outFileName = new String(outMetadataFolder + File.separator + "mappings.csv");
 		CsvMyWriter.SaveArrayListString(strSaveMapping, outFileName);	
 
 		return true;
@@ -1085,21 +1093,51 @@ public class MaskFromAnnotations {
 			System.exit(1);
 			return;
 		}
+		
+		MaskFromAnnotations myClass = new MaskFromAnnotations();
 
 		String inputJSONFileFolder = cmd.getOptionValue("inputannotations");
-		String inputRawFileFolder = cmd.getOptionValue("inputrawimages");
+		myClass.inputRawFileFolder = cmd.getOptionValue("inputrawimages");
 		String inputStitchingFileFolder = cmd.getOptionValue("stitchingvector");
 		String uniqueTypeStr = cmd.getOptionValue("uniquetype");
 		String combineAllUniqueStr = cmd.getOptionValue("combineallunique");
 		String outFileFolder = cmd.getOptionValue("outputmasks");
 		
+		File outputFolder = new File(outFileFolder);
+		boolean created = outputFolder.mkdirs();
+		if (!created && !outputFolder.exists()) {
+			throw new IOException("Can not create folder " + outputFolder);
+		}
+
+		String outputImagesFolder = outFileFolder + File.separator + "images";
+		String outputMetadataFolder = outFileFolder + File.separator + "metadata_files";
+		
+		File outputImgDir = new File(outputImagesFolder);
+		boolean imgDirCreated = outputImgDir.mkdirs();
+		if (!imgDirCreated && !outputImgDir.exists()) {
+			throw new IOException("Can not create folder " + outputImgDir);
+		}
+		
+		File outputMetadataDir = new File(outputMetadataFolder);
+		boolean metadataCreated = outputMetadataDir.mkdirs();
+		if (!metadataCreated && !outputMetadataDir.exists()) {
+			throw new IOException("Can not create folder " + outputMetadataDir);
+		}
+		
 		int uniqueType = Integer.parseInt(uniqueTypeStr);
 		boolean combineAllUnique = Boolean.parseBoolean(combineAllUniqueStr);
-		
+			
+		boolean isMappingFixed = false;
+
 		Path tempDirWithPrefix = Files.createTempDirectory("tempjson");
 		String modifiedJSONFolder = tempDirWithPrefix.toString();
 		
-		File inputFolder = new File(inputRawFileFolder);
+		if(!RenameAnnotations.CMD_renameAnnotJSONbasedOnStitching(inputJSONFileFolder, inputStitchingFileFolder, modifiedJSONFolder)) {
+			System.err.println("ERROR: failed renaming "+ inputJSONFileFolder + " based on "+ inputStitchingFileFolder + " into " + modifiedJSONFolder);
+			return;
+		}
+		
+		File inputFolder = new File(myClass.inputRawFileFolder);
 		File[] tiles =  inputFolder.listFiles(new FilenameFilter() {
 			public boolean accept(File dir, String name) {
 				return name.toLowerCase().endsWith(".tif");
@@ -1107,17 +1145,18 @@ public class MaskFromAnnotations {
 		});
 
 		if (tiles == null || tiles.length == 0) {
-			throw new NullPointerException("Input folder is empty or no images were found.");
+			myClass.inputRawFileFolder += File.separator + "images";
+			tiles =  inputFolder.listFiles(new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					return name.toLowerCase().endsWith(".tif");
+				}
+			});
+			if (tiles == null || tiles.length == 0) {
+				throw new NullPointerException("Input folder is empty or no images were found.");
+			}
+			boolean ret = myClass.CMDlaunch(modifiedJSONFolder, uniqueType, combineAllUnique, isMappingFixed, myClass.inputRawFileFolder, outputImagesFolder, outputMetadataFolder);
 		}
-				
-		if(!RenameAnnotations.CMD_renameAnnotJSONbasedOnStitching(inputJSONFileFolder, inputStitchingFileFolder, modifiedJSONFolder)) {
-			System.err.println("ERROR: failed renaming "+ inputJSONFileFolder + " based on "+ inputStitchingFileFolder + " into " + modifiedJSONFolder);
-			return;
-		}
-		
-		MaskFromAnnotations myClass = new MaskFromAnnotations();
-		boolean isMappingFixed = false;
-		boolean ret = myClass.CMDlaunch(modifiedJSONFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, outFileFolder );
+			
+		boolean ret = myClass.CMDlaunch(modifiedJSONFolder, uniqueType, combineAllUnique, isMappingFixed, myClass.inputRawFileFolder, outputImagesFolder, outputMetadataFolder);
 	}
-
 }

@@ -412,6 +412,13 @@ public class organelleWF {
 			directory.mkdir();
 			System.out.println("output annotMask Directory was created: " + annotMaskOutput);
 		}		
+		
+		String metadataOutput = new String(outFileFolder + File.separator + "metadata_files"); 
+		directory=new File(metadataOutput);
+		if(!directory.exists()){
+			directory.mkdir();
+			System.out.println("output annotMask Directory was created: " + metadataOutput);
+		}
 		MaskFromAnnotations myClass = new MaskFromAnnotations();
 
 		boolean isMappingFixed = false;
@@ -435,7 +442,7 @@ public class organelleWF {
 		// or should become binary with the value of 255	
 		isMappingFixed = false;//true;
 
-		boolean ret = myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput );
+		boolean ret = myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput, metadataOutput);
 		if(!ret){
 			System.err.println("failed to create mask images in " + annotMaskOutput);
 			return false;			

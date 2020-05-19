@@ -65,9 +65,12 @@ public class concreteWF {
 		ConcreteMaskLabelMap concreteLabel = new ConcreteMaskLabelMap(2);		
 		myClass.setLabel2grayMapping(concreteLabel.getLabel2grayMapping());
 		
+		String outputImagesFolder = outFileFolder + File.separator + "images";
+		String outputMetadataFolder = outFileFolder + File.separator + "metadata_files";
+		
 		isMappingFixed = true;
 		boolean ret = true;
-		ret = myClass.CMDlaunch(inputJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, outFileFolder );
+		ret = myClass.CMDlaunch(inputJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, outputImagesFolder, outputMetadataFolder);
 		
 		// the tiling is hard coded based on the FOV provided by Steve 
 		String rawFileFolder = new String(inputRawFileFolder);
@@ -157,7 +160,13 @@ public class concreteWF {
 		if(!directory.exists()){
 			directory.mkdir();
 			System.out.println("output annotMask Directory was created: " + annotMaskOutput);
-		}		
+		}
+		String metadataOutput = new String(outFileFolder + File.separator + "metadata_files");
+		directory=new File(metadataOutput);
+		if(!directory.exists()){
+			directory.mkdir();
+			System.out.println("output annotMask metadata Directory was created: " + metadataOutput);
+		}
 		MaskFromAnnotations myClass = new MaskFromAnnotations();
 		
 		boolean isMappingFixed = false;
@@ -169,7 +178,7 @@ public class concreteWF {
 		myClass.setLabel2grayMapping(concreteLabel.getLabel2grayMapping());		
 		isMappingFixed = true;
 		
-		ret = ret & myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput );
+		ret = ret & myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput, metadataOutput);
 		if(!ret){
 			System.err.println("failed to create mask images in " + annotMaskOutput);
 			return false;			
