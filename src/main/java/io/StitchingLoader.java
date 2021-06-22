@@ -126,6 +126,11 @@ public class StitchingLoader {
 		
 		//this update is to make file name matching more adaptive to the fact that the file name root can be in the middle of the string
 		int rootLastIndex = fileName.lastIndexOf(root);
+		// sanity check
+		if( rootLastIndex+root.length() >= dot ) {
+			System.err.println("StitchingfileName="+StitchingfileName+" is shorter than expected root="+root);
+			return -1;				
+		}
 		String indexStr = fileName.substring(rootLastIndex+root.length(), dot);
 		
 		//String indexStr2 = fileName.substring(root.length(), dot);
@@ -202,8 +207,9 @@ public class StitchingLoader {
 		//String outFileName = new String();
 		
 		String rootJSON = new String("annotations-frame");
+		String rootJSON2 = new String("test-");
 		String rootTXT = new String("stitching-vector");
-		String rootTXT2 = new String("img-global-positions-");
+		String rootTXT2 = new String("-img-global-positions-");
 		
 			
 		// store metadata about the execution
@@ -216,7 +222,11 @@ public class StitchingLoader {
 			String nameJSON = (new File(JSONfileName)).getName();
 			int indexJSON = StitchingLoader.getFilenameIndex(nameJSON, rootJSON);//nameJSON.substring(0, nameJSON.length()-5);
 			if(indexJSON == -1) {
-				System.err.println("ERROR: the JSON file name " + nameJSON + " does not follow the convention: file name should start with "+ rootJSON);
+				// if the stitching vector file name follows a different naming convention then try the rootTXT2
+				indexJSON = StitchingLoader.getFilenameIndex(nameJSON, rootJSON2);
+			}
+			if(indexJSON == -1) {
+				System.err.println("ERROR: the JSON file name " + nameJSON + " does not follow the convention: file name should start with "+ rootJSON + " or " + rootJSON2);
 				continue;
 			}
 			// find matching stitchFileName

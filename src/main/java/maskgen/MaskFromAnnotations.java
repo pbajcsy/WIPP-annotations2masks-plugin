@@ -16,6 +16,7 @@ import java.awt.Color;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,6 +24,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -50,8 +52,11 @@ import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.common.services.ServiceFactory;
 import loci.formats.FormatException;
+import loci.formats.FormatTools;
 import loci.formats.ImageReader;
 import loci.formats.services.OMEXMLService;
+import ome.xml.model.enums.PixelType;
+import ome.xml.model.primitives.PositiveInteger;
 
 import java.util.logging.Logger;
 import util.BioFormatsUtils;
@@ -70,9 +75,6 @@ import util.FileOper;
  * @author peter bajcsy
  * @author Mohamed Ouladi <mohamed.ouladi at nist.gov>
  *
- */
-
-/*
  */
 public class MaskFromAnnotations {
 
@@ -439,9 +441,83 @@ public class MaskFromAnnotations {
 		// For short and float images, recalculates the min and max image values needed to correctly display the image. For ByteProcessors, resets the LUT.
 		ip3.resetMinAndMax();		
 		System.out.println("min = "+ ip3.getMin() +", max="+ ip3.getMax() );
+		System.out.println("number of channeles:" + ip3.getNChannels());
 		
 		OMEXMLMetadata metadata = getMetadata(rawImageName);
-		byte[] bytesArr = (byte[]) ip3.getPixels();
+	
+//		metadata.setPixelsBigEndian(false,0);
+//		PositiveInteger significantBits = new PositiveInteger(8);
+//		metadata.setPixelsSignificantBits(significantBits, 0);
+//		metadata.setPixelsType(PixelType.UINT8, 0);
+//		System.out.println("metadata="+metadata.dumpXML());	
+		PixelType pxlType = metadata.getPixelsType(0);
+		int bpp = FormatTools.getBytesPerPixel(pxlType.getValue());
+		
+	    byte[] bytesArr = null;
+//	    bytesArr = (byte []) ip3.getPixels() ;
+		switch (pxlType) {
+		case UINT8:
+			System.out.println(rawImageName + " is an 8bpp image");
+			bytesArr = (byte[]) ip3.getPixels();
+			break;
+		case UINT16:
+			System.out.println(rawImageName + " is a 16bpp image");
+			short[] shorts = (short[]) ip3.getPixels();
+
+			// Converting short array to bytes array
+			ByteBuffer byteShortBuf = ByteBuffer.allocate(shorts.length * 2);
+			for (short s : shorts) {
+				byteShortBuf.putShort(s);
+			}
+			bytesArr = byteShortBuf.array();
+			break;
+		case FLOAT:
+			System.out.println(rawImageName + " is a 32bpp image.");
+			System.out.println(
+					"32bpp images are not handled by the thresholding plugin. Please convert the image to an 8bpp or a 16bpp image.");
+			throw new UnsupportedOperationException("Unsupported image type.");
+		default:
+			System.out.println("WARNING: the type of this image: " + rawImageName + " is not 8bpp nor 16bpp");
+			System.out.println("Please convert the image type to 8bpp or 16bpp.");
+			throw new UnsupportedOperationException("Unsupported image type.");
+		}
+	    
+//		Class c = ip3.getPixels().getClass();
+//	    if (c.isArray()) {
+//	         Class arrayType = c.getComponentType();
+//	         int length_ip3 = Array.getLength(ip3.getPixels());
+//	         System.out.println("The array is of type: " + arrayType);
+//	         System.out.println("The length of the array is: " + length_ip3);     
+//	         if ( arrayType.toString().equalsIgnoreCase("byte") ) {
+//	        	 System.out.println("The array elements are bytes");
+//	     		 bytesArr = (byte[]) ip3.getPixels();
+//	         }
+//	         if ( arrayType.toString().equalsIgnoreCase("short") ) {
+//	        	 System.out.println("The array elements are shorts ");
+//	        	 System.out.println("new length of bytesArr=" + (int)(ip3.getWidth()*ip3.getHeight()) );
+//	        	 ByteBuffer buffer = ByteBuffer.allocate(length_ip3);
+//	        	 //buffer.order(ByteOrder.LITTLE_ENDIAN); 
+//	        	 int min = (int)ip3.getMin();
+//	        	 int max = (int)ip3.getMax();
+//	        	 for (int idx = 0; idx < length_ip3; idx++) {
+//	        		 // scale short to byte
+//		        	 buffer.put( (byte) ( (ip3.get(idx) - min)*255/(max-min)) );
+//		         }
+//	        	 bytesArr = (byte []) buffer.array();
+//	         }	             
+//	      }
+	    
+//
+////	    try {
+////		    //@SuppressWarnings({ "unchecked" });
+////	    	@SuppressedExceptions("cast");
+////		    bytesArr = (byte[]) ip3.getPixels();
+////	    }catch(Exception e) {
+////	    	System.out.println("Exception due to casting="+e);
+////	       	 ip3.convertToByte(true);
+////	       	 ip3.convertToByteProcessor();
+////	       	bytesArr = (byte[]) ip3.getPixels();
+////	    }
 		writeTiledOMETiff(metadata, bytesArr, outFileName);
 		System.out.println("Done!");
 
@@ -847,7 +923,9 @@ public class MaskFromAnnotations {
 			for(Iterator<String> r = sortedImagesInFolder.iterator(); !foundMatch && r.hasNext(); ){
 				rawFileName = r.next();
 				String nameTIFF = (new File(rawFileName)).getName();
-				nameTIFF = nameTIFF.substring(0, nameTIFF.length()-8); // TODO check what to remove, this case is for  .ome.tif
+				// replace all spaces from the name
+				nameTIFF = nameTIFF.replaceAll("\\s", "");
+				nameTIFF = nameTIFF.substring(0, nameTIFF.length()-8); // TODO check what to remove, this case is for .tif or  .ome.tif
 				if(nameJSON.equalsIgnoreCase(nameTIFF)){
 					
 					foundMatch = true;
@@ -1002,6 +1080,9 @@ public class MaskFromAnnotations {
 	
 	
 	public void writeTiledOMETiff(OMEXMLMetadata metadata, byte[] bytesArr, String outFileName){
+		PixelType pxlType = metadata.getPixelsType(0);
+		int bpp = FormatTools.getBytesPerPixel(pxlType.getValue());
+		System.out.println("INFO: bpp="+bpp);	
 		//Writing the output tiled tiff
 		try (OMETiffWriter imageWriter = new OMETiffWriter()) {
 			imageWriter.setMetadataRetrieve(metadata);
@@ -1016,7 +1097,7 @@ public class MaskFromAnnotations {
 			int nYTiles = this.height / TILE_SIZE;
 			if (nXTiles * TILE_SIZE != this.width) nXTiles++;
 			if (nYTiles * TILE_SIZE != this.height) nYTiles++;
-
+			
 			for (int k=0; k<nYTiles; k++) {
 				for (int l=0; l<nXTiles; l++) {
 					
@@ -1025,19 +1106,30 @@ public class MaskFromAnnotations {
 					
 					int effTileSizeX = (tileX + TILE_SIZE) < this.width ? TILE_SIZE : this.width - tileX;
 					int effTileSizeY = (tileY + TILE_SIZE) < this.height ? TILE_SIZE : this.height - tileY;
-
-					//buf = reader.openBytes(0, tileX, tileY, effTileSizeX, effTileSizeY);
-					imageWriter.saveBytes(0, bytesArr, tileX, tileY, effTileSizeX, effTileSizeY);
+					
+					// Get values of current tile
+					byte[] buf = new byte[effTileSizeX * effTileSizeY * bpp];
+					int offset, i, bufIndex = 0;
+					for (int indexY = tileY; indexY < (tileY + effTileSizeY); indexY ++) {
+						offset = indexY * this.width * bpp;
+						for (int indexX = tileX; indexX < (tileX + effTileSizeX); indexX ++) {
+							i = offset + indexX * bpp;
+							for (int bppIndex = 0; bppIndex < bpp; bppIndex ++) {
+								buf[bufIndex] = bytesArr[i + bppIndex];
+								bufIndex ++;
+							}
+						}
+					}
+					// Write tile
+					imageWriter.saveBytes(0, buf, tileX, tileY, effTileSizeX, effTileSizeY);
 				}
 			}
 			
-			
-			//imageWriter.saveBytes(0, bytesArr);
-
 		} catch (FormatException | IOException ex) {
-			throw new RuntimeException("No image writer found for file "
-					+ outFileName, ex);
+			throw new RuntimeException("Error while setting up image writer for file "
+					+ outFileName + ": " + ex.getMessage(), ex);
 		}
+		
 	}
 	
 	

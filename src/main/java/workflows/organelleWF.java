@@ -23,7 +23,9 @@ import io.RenameAnnotations;
 import loci.formats.FormatException;
 import maskgen.MaskFromAnnotations;
 import maskgen.MaskJoin;
+import maskgen.MaskOper;
 import util.FileOper;
+import util.maskInterpolation;
 
 /**
  * 
@@ -404,7 +406,8 @@ public class organelleWF {
 		System.out.println("combineAllUnique=" + combineAllUnique); 
 		System.out.println("inputRawFileFolder=" + inputRawFileFolder);
 		System.out.println("outFileFolder="+outFileFolder);
-
+		// asssign metadata folder to be the same as output folder
+		String outMetadataFolder = new String(outFileFolder);
 
 		String annotMaskOutput = new String(outFileFolder + File.separator + "annotMasks"); 
 		directory=new File(annotMaskOutput);
@@ -412,13 +415,6 @@ public class organelleWF {
 			directory.mkdir();
 			System.out.println("output annotMask Directory was created: " + annotMaskOutput);
 		}		
-		
-		String metadataOutput = new String(outFileFolder + File.separator + "metadata_files"); 
-		directory=new File(metadataOutput);
-		if(!directory.exists()){
-			directory.mkdir();
-			System.out.println("output annotMask Directory was created: " + metadataOutput);
-		}
 		MaskFromAnnotations myClass = new MaskFromAnnotations();
 
 		boolean isMappingFixed = false;
@@ -442,7 +438,7 @@ public class organelleWF {
 		// or should become binary with the value of 255	
 		isMappingFixed = false;//true;
 
-		boolean ret = myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput, metadataOutput);
+		boolean ret = myClass.CMDlaunch(renamedJSONFileFolder, uniqueType, combineAllUnique, isMappingFixed, inputRawFileFolder, annotMaskOutput, outMetadataFolder );
 		if(!ret){
 			System.err.println("failed to create mask images in " + annotMaskOutput);
 			return false;			
@@ -532,20 +528,52 @@ public class organelleWF {
 		myClass.cropRectangles(inputRectCSVFileFolder,  inputImageFileFolder,  outFileFolder);
 		*/
 		
-		String inputJSONFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\annotations");
-		String inputStitchFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\stitching");
-		String inputRawFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\images8BPP");
-		String outFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\masks");
-		
-		myClass.annotationToMasks(inputJSONFileFolder,inputStitchFileFolder, inputRawFileFolder,  outFileFolder) ;
+		// step 0: download stitching vectors from WIPP
+		// step 1: prepare folders with raw images, annotations, and stitching vectors to create a annotaion masks
+//		String inputJSONFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\annotations");
+//		String inputStitchFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\stitching");
+//		String inputRawFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\images");
+//		String outFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\masks");
+
+		String inputJSONFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\annotations");
+		String inputStitchFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\stitching");
+		String inputRawFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\images");
+		String outFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\masks");
+		// step 2: create annotations masks
+	    myClass.annotationToMasks(inputJSONFileFolder,inputStitchFileFolder, inputRawFileFolder,  outFileFolder) ;
 
 		// this assumes that the previous step renamed the original JSON files to match the tiff file names
-		String inputJSONRenamedFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\masks\\renamedJSON");
+//		String inputJSONRenamedFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\masks\\renamedJSON");
+//		
+//		String outCircleCenterFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2020-05-24\\masks\\circleCenter");
+//
+//		organelleWF.extractCircleCenter_batch(inputJSONRenamedFileFolder, outCircleCenterFileFolder );
+
+		//step 3: interpolate the masks
+ 		int maxTimeFrame;
+ 		maxTimeFrame = 454; // 807;
+ 		System.out.println("maxTimeFrame=" + maxTimeFrame);
+ 		
+		String inputDir = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\masks\\annotMasks\\color0\\");
+		String outDir = new String(
+				"C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\masks\\annotMaskInterpolate\\");
+	
+		// A3_02_c1_p1Z0_BrightField_t002_maxXY.ome.tif or B1_02_c1_p1Z0_BrightField_t001_maxXY.ome
+		//String prefixIndexString = new String("A3_02_c1_p1Z0_BrightField_t");
+		//String prefixIndexString = new String("B1_02_c1_p1Z0_BrightField_t");
+		String prefixIndexString = new String("A2_02_c1_p1Z0_BrightField_t"); // A2_02_c1_p1Z0_BrightField_t134_maxXY.ome.tif
 		
-		String outCircleCenterFileFolder = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\GeorgiaTech_2019-10-08\\masks\\circleCenter");
+		String postfixIndexString = new String("_maxXY.ome.tif");
 
-		organelleWF.extractCircleCenter_batch(inputJSONRenamedFileFolder, outCircleCenterFileFolder );
-
+		//maskInterpolation.copyFirstMask(inputDir, prefixIndexString, postfixIndexString, maxTimeFrame, outDir);
+		
+		// step 4: use the masks to keep the raw pixels only over the regions defined by masks	
+		String inputRawFileFolder2 = new String("C:\\\\PeterB\\\\Projects\\\\TestData\\\\Ronit_zstacks\\\\2021-06-15\\images\\");
+		String maskFileFolder2 = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\masks\\annotMaskInterpolate\\interpolate\\");				
+		String outputFileFolder2 = new String("C:\\PeterB\\Projects\\TestData\\Ronit_zstacks\\2021-06-15\\masks\\cellFiltered\\");
+			
+		//MaskOper.applyMask_batch(inputRawFileFolder2, maskFileFolder2, outputFileFolder2);
+		
 	}
 
 }

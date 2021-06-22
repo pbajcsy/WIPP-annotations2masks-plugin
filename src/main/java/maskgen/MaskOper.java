@@ -3,6 +3,7 @@ package maskgen;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
@@ -18,6 +19,19 @@ import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import io.CSV_IOsupport;
+import loci.common.services.DependencyException;
+import loci.common.services.ServiceException;
+import loci.common.services.ServiceFactory;
+import loci.formats.FormatException;
+import loci.formats.FormatTools;
+import loci.formats.IFormatReader;
+import loci.formats.ImageReader;
+import loci.formats.codec.CompressionType;
+import loci.formats.ome.OMEXMLMetadata;
+import loci.formats.out.OMETiffWriter;
+import loci.formats.services.OMEXMLService;
+import ome.xml.model.enums.PixelType;
+import util.BioFormatsUtils;
 import util.FileOper;
 
 public class MaskOper {
@@ -74,6 +88,49 @@ public class MaskOper {
 	        		ip_byte.putPixelValue(x, y, (byte)v1);
 	        	}
 
+	        }   
+	    }
+	   imRes.setImage(imRes);
+	   
+	   return  imRes;	
+			
+	}
+
+
+	/** 
+	 * This method is for setting the foreground pixels to a specified value
+	 * 
+	 * @param inputMask - input mask image
+	 * @param fromValue - old value for foreground pixel
+	 * @param toValue - new value for foreground pixel
+	 * @return
+	 */
+
+	public static ImagePlus setFRGValues(ImagePlus inputMask, int fromValue, int toValue){
+		//sanity check
+		if(inputMask == null ){
+			System.err.println("ERROR: input image should not be null");
+			return null;
+		}
+		ImageProcessor ip1 = inputMask.getProcessor();
+
+				
+		int width = ip1.getWidth();
+		int height = ip1.getHeight();
+		
+		ByteProcessor ip_byte = new ByteProcessor(width, height);
+		ImagePlus imRes = new ImagePlus("Result", ip_byte);
+		ip_byte.set(0);
+		
+		int v1, v2, v3;
+		for (int x=0; x<width; x++) {
+	        for (int y=0; y<height; y++) {
+	        	v1 = ip1.getPixel(x,y);//inputMask
+	        	if (v1 == fromValue){
+        			ip_byte.putPixelValue(x, y, (byte)toValue);
+	        	}else{
+	        		ip_byte.putPixelValue(x, y, (byte)v1);
+	        	}
 	        }   
 	    }
 	   imRes.setImage(imRes);
@@ -458,7 +515,15 @@ public class MaskOper {
 	   
 	   return  imRes;	
 	}
-	
+	/**
+	 * This method is designed for creating a masked/filtered images from a collection of input raw images
+	 * and a collection of mask images
+	 * 
+	 * @param inputRawFileFolder - input folder with raw images
+	 * @param maskFileFolder  - input folder with mask images
+	 * @param outputFileFolder - output folder with filtered/masked images
+	 * @return boolean success
+	 */
 	public static boolean applyMask_batch(String inputRawFileFolder, String maskFileFolder, String outputFileFolder) {
 		if (inputRawFileFolder == null || maskFileFolder == null || outputFileFolder == null) {
 			System.err.println(
@@ -533,6 +598,8 @@ public class MaskOper {
 				lastDot = rawFile.getName().lastIndexOf(".");
 				nameTIFF = rawFile.getName().substring(0, lastDot);// for raw images: B1_02_c1_p1Z0_BrightField_t001_maxXY.ome.tif
 				//nameTIFF = rawFile.getName().substring(10, lastDot);// for ROI from vesicleDetected: Segmented_B1_02_c1_p1Z0_BrightField_t001_maxXY.ome.tif
+				// remove any spaces from the name
+				nameTIFF = nameTIFF.replaceAll("\\s", "");
 				if (onlyMaskFileName.equalsIgnoreCase(nameTIFF)) {
 					foundMatch = true;
 				}
@@ -546,10 +613,216 @@ public class MaskOper {
 			////////////////////////////////////////////
 			// apply the mask as a filter
 			System.out.println("INFO: load raw image = " + rawFileName);		
-			ImagePlus inputRaw = IJ.openImage(rawFileName);
+			//ImagePlus inputRaw = IJ.openImage(rawFileName);
+			ImagePlus inputRaw = BioFormatsUtils.readImage(rawFileName);
+			MultiVariables metadata_raw = getMetadata(rawFileName);
+			
+			System.out.println("INFO: load mask image = " + maskFileName);		
+			//ImagePlus inputMask = IJ.openImage(maskFileName);
+			ImagePlus inputMask = BioFormatsUtils.readImage(maskFileName);
+			MultiVariables metadata_mask = getMetadata(maskFileName);
+			
+			ImagePlus resImage = applyMask(inputRaw, inputMask, 0);
+						
+			//////////////////////////////////
+			// save the resulting image as grayscale TIF 
+			
+			String outFileName = new String(outputFileFolder);
+			File dir = new File(outputFileFolder);
+			if(!dir.exists()){
+				dir.mkdir();
+			}else{
+				if(!dir.canWrite()){
+					System.err.println("ERROR: cannot write to the output folder = " + outputFileFolder);
+					return false;
+				}
+			}
+			outFileName += (new File(rawFileName)).getName();
+			System.out.println("Saving " + outFileName);
+			// this is replaced to use BioFormats
+			//FileSaver	fs = new FileSaver(resImage);
+			//fs.saveAsTiff(outFileName);
+			
+			ImageProcessor ip_res = resImage.getProcessor();
+			PixelType pxlType = metadata_raw.metadata.getPixelsType(0);
+		    byte[] bytesArr = null;
+			switch (pxlType) {
+			case UINT8:
+				System.out.println(rawFileName + " is an 8bpp image");
+				bytesArr = (byte[]) ip_res.getPixels();
+				break;
+			case UINT16:
+				System.out.println(rawFileName + " is a 16bpp image");
+				short[] shorts = (short[]) ip_res.getPixels();
+
+				// Converting short array to bytes array
+				ByteBuffer byteShortBuf = ByteBuffer.allocate(shorts.length * 2);
+				for (short s : shorts) {
+					byteShortBuf.putShort(s);
+				}
+				bytesArr = byteShortBuf.array();
+				break;
+			case FLOAT:
+				System.out.println(rawFileName + " is a 32bpp image.");
+				System.out.println(
+						"32bpp images are not handled by the thresholding plugin. Please convert the image to an 8bpp or a 16bpp image.");
+				throw new UnsupportedOperationException("Unsupported image type.");
+			default:
+				System.out.println("WARNING: the type of this image: " + rawFileName + " is not 8bpp nor 16bpp");
+				System.out.println("Please convert the image type to 8bpp or 16bpp.");
+				throw new UnsupportedOperationException("Unsupported image type.");
+			}
+		    
+			writeTiledOMETiff(metadata_raw, bytesArr, outFileName);
+			System.out.println("Done!");
+
+		}
+		
+		return true;		
+	}
+
+	/**
+	 * This is a batch execution of changing binarized images (FRG = high value) to mask labels (FRG=1 and BKG=0)
+	 */
+	public static boolean applySetValue_batch(String maskFileFolder, String outputFileFolder, int fromValue, int toValue) {
+		if ( maskFileFolder == null || outputFileFolder == null) {
+			System.err.println(
+					"ERROR: missing one of the input locations for  mask file folder or output location ");
+			return false;
+		}
+
+		/////////////////////////////////////////////////////////////////////////
+		Collection<String> dirfiles_mask = FileOper.readFileDirectory(maskFileFolder);
+		System.out.println("Mask Directory Collection Size=" + dirfiles_mask.size());
+		System.out.println();
+		System.out.println();
+		// select TIFF files with the right suffix
+		String suffixTIFF = new String(".tif");
+		Collection<String> onlyMasks = FileOper.selectFileType(dirfiles_mask, suffixTIFF);
+		if (onlyMasks.size() == 0) {
+			System.err.println(" Mask Directory List Collection size is zero for TIF images");
+			return false;
+		}
+		// sort images to process since the renaming and folder placement depend on the
+		// time stamp
+		Collection<String> sortedMaskInFolder = FileOper.sort(onlyMasks, FileOper.SORT_ASCENDING);
+
+		System.out.println("filtered and sorted Collection Size=" + onlyMasks.size());
+		FileOper.printCollection(sortedMaskInFolder);
+		/////////////////////////////////////////////////////////////////////////
+		// create the output folder if it does not exist
+		//int delta = (int) deltas[0];
+		//String maskOutput = new String(OutFileRootName + "mask_" + delta + File.separator);
+		String maskOutput = new String(outputFileFolder);
+		File directory = new File(maskOutput);
+		if (!directory.exists()) {
+			directory.mkdir();
+			System.out.println("output Directory was created: " + maskOutput);
+		}
+		/////////////////////////////////////////////////////////
+		String rawFileName = null;
+		String nameTIFF = null;
+		int lastDot;
+		
+		for (Iterator<String> k = sortedMaskInFolder.iterator(); k.hasNext();) {
+			String maskFileName = k.next();
+			File maskFile = new File(maskFileName); 
+			lastDot = maskFile.getName().lastIndexOf(".");
+			//String onlyMaskFileName = maskFile.getName().substring(17, lastDot);//for cell regions: rgb_128_255_128__B1_02_c1_p1Z0_BrightField_t001_maxXY.ome.tif
+			//String onlyMaskFileName = maskFile.getName().substring(13, lastDot);// for ROI: Light_Yellow_B1_02_c1_p1Z0_BrightField_t001_maxXY.ome.tif		
+			// find matching rawFileName
+			String onlyMaskFileName = maskFile.getName().substring(0, lastDot);
+	
+			////////////////////////////////////////////
+			// apply the value conversion
 			System.out.println("INFO: load mask image = " + maskFileName);		
 			ImagePlus inputMask = IJ.openImage(maskFileName);
 
+			ImagePlus resImage = setFRGValues(inputMask, fromValue, toValue);
+			
+			//////////////////////////////////
+			// save the resulting image as grayscale TIF 
+			String outFileName = new String(outputFileFolder);
+			File dir = new File(outputFileFolder);
+			if(!dir.exists()){
+				dir.mkdir();
+			}else{
+				if(!dir.canWrite()){
+					System.err.println("ERROR: cannot write to the output folder = " + outputFileFolder);
+					return false;
+				}
+			}
+			outFileName += (new File(rawFileName)).getName();
+			System.out.println("Saving " + outFileName);
+			FileSaver	fs = new FileSaver(resImage);
+			fs.saveAsTiff(outFileName);
+		}
+		
+		return true;		
+	}
+
+	/**
+	 * This method is designed for creating a masked/filtered images from a collection of input raw images
+	 * and one mask image file
+	 * 
+	 * @param inputRawFileFolder - input folder with raw images
+	 * @param maskFile - input mask image
+	 * @param outputFileFolder - output folder with filtered/masked images
+	 * @return boolean success
+	 */
+	public static boolean applyOneMask_batch(String inputRawFileFolder, String maskFile, String outputFileFolder) {
+		if (inputRawFileFolder == null || maskFile == null || outputFileFolder == null) {
+			System.err.println(
+					"ERROR: missing one of the input locations for raw folder or mask file or output folder location ");
+			return false;
+		}
+
+		////////////////////////////////////////////////////////
+		Collection<String> dirfiles = FileOper.readFileDirectory(inputRawFileFolder);
+		System.out.println("Directory Collection Size=" + dirfiles.size());
+		// FileOper.printCollection(dirfiles);
+		System.out.println();
+		System.out.println();
+		// select TIFF files with the right suffix
+		String suffixTIFF = new String(".tif");
+		Collection<String> onlyimages = FileOper.selectFileType(dirfiles, suffixTIFF);
+		if (onlyimages.size() == 0) {
+			System.err.println("Raw Directory List Collection size is zero for TIF images");
+			return false;
+		}
+		// sort images to process since the renaming and folder placement depend on the
+		// time stamp
+		Collection<String> sortedRawInFolder = FileOper.sort(onlyimages, FileOper.SORT_ASCENDING);
+
+		System.out.println("filtered and sorted Collection Size=" + onlyimages.size());
+		FileOper.printCollection(sortedRawInFolder);
+		/////////////////////////////////////////////////////////////////////////
+		// create the output folder if it does not exist
+		String maskOutput = new String(outputFileFolder);
+		File directory = new File(maskOutput);
+		if (!directory.exists()) {
+			directory.mkdir();
+			System.out.println("output Directory was created: " + maskOutput);
+		}
+		/////////////////////////////////////////////////////////
+		// load the mask file
+		File maskOneFile = new File(maskFile); 
+		if( !maskOneFile.exists()){
+			System.err.println("Input Mask One File does not exist: " + maskFile);
+			return false;		
+		}
+		System.out.println("INFO: load mask image = " + maskFile);		
+		ImagePlus inputMask = IJ.openImage(maskFile);
+
+		/////////////////////////////////////////////////////////
+		// load the raw files
+		String rawFileName = null;
+		for (Iterator<String> r = sortedRawInFolder.iterator();  r.hasNext();) {
+			rawFileName = r.next();
+			////////////////////////////////////////////
+			// apply the mask as a filter
+			System.out.println("INFO: load raw image = " + rawFileName);		
+			ImagePlus inputRaw = IJ.openImage(rawFileName);
 			ImagePlus resImage = applyMask(inputRaw, inputMask, 0);
 			
 			//////////////////////////////////
@@ -574,7 +847,108 @@ public class MaskOper {
 		return true;		
 	}
 
+
+	///////////////////////////////////////////////////////////////////
+	//Inspired from the WIPP-image-assembling-plugin
+	// to be reused in MaskFromAnnotations.java
+	static class MultiVariables {
+	    int width = 0; // To store width
+	    int height = 0; // to store heights
+	    OMEXMLMetadata metadata = null; // to store metadata
+//	    MultiVariables(int w, int h, OMEXMLMetadata m)
+//	    {
+//	        this.width = w;
+//	        this.height = h;
+//	        this.metadata = m;
+//	    }
+	    
+	}
+	private static MultiVariables getMetadata(String tile) {
+		MultiVariables my_var = new MultiVariables(); 
+		//OMEXMLMetadata metadata;
+		try {
+			OMEXMLService omeXmlService = new ServiceFactory().getInstance(
+					OMEXMLService.class);
+			my_var.metadata = omeXmlService.createOMEXMLMetadata();
+		} catch (DependencyException ex) {
+			throw new RuntimeException("Cannot find OMEXMLService", ex);
+		} catch (ServiceException ex) {
+			throw new RuntimeException("Cannot create OME metadata", ex);
+		}
+		try (ImageReader imageReader = new ImageReader()) {
+			IFormatReader reader;
+			reader = imageReader.getReader(tile);
+			reader.setOriginalMetadataPopulated(false);
+			reader.setMetadataStore(my_var.metadata);
+			reader.setId(tile);
+			my_var.width = reader.getSizeX();
+			my_var.height = reader.getSizeY();
+		} catch (FormatException | IOException ex) {
+			throw new RuntimeException("No image reader found for file "
+					+ tile, ex);
+		}
+
+		return my_var;
+	}
+	
+	
+	public static void writeTiledOMETiff(MultiVariables my_var, byte[] bytesArr, String outFileName){
+		int TILE_SIZE = 1024;
 		
+		PixelType pxlType = my_var.metadata.getPixelsType(0);
+		int bpp = FormatTools.getBytesPerPixel(pxlType.getValue());
+		System.out.println("INFO: bpp="+bpp);	
+		//Writing the output tiled tiff
+		try (OMETiffWriter imageWriter = new OMETiffWriter()) {
+			imageWriter.setMetadataRetrieve(my_var.metadata);
+			imageWriter.setTileSizeX(TILE_SIZE);
+			imageWriter.setTileSizeY(TILE_SIZE);
+			imageWriter.setInterleaved(my_var.metadata.getPixelsInterleaved(0));
+			imageWriter.setCompression(CompressionType.LZW.getCompression());
+			imageWriter.setId(outFileName);
+
+			// Determined the number of tiles to read and write
+			int nXTiles = my_var.width / TILE_SIZE;
+			int nYTiles = my_var.height / TILE_SIZE;
+			if (nXTiles * TILE_SIZE != my_var.width) nXTiles++;
+			if (nYTiles * TILE_SIZE != my_var.height) nYTiles++;
+			
+			for (int k=0; k<nYTiles; k++) {
+				for (int l=0; l<nXTiles; l++) {
+					
+					int tileX = l * TILE_SIZE;
+					int tileY = k * TILE_SIZE;
+					
+					int effTileSizeX = (tileX + TILE_SIZE) < my_var.width ? TILE_SIZE : my_var.width - tileX;
+					int effTileSizeY = (tileY + TILE_SIZE) < my_var.height ? TILE_SIZE : my_var.height - tileY;
+					
+					// Get values of current tile
+					byte[] buf = new byte[effTileSizeX * effTileSizeY * bpp];
+					int offset, i, bufIndex = 0;
+					for (int indexY = tileY; indexY < (tileY + effTileSizeY); indexY ++) {
+						offset = indexY * my_var.width * bpp;
+						for (int indexX = tileX; indexX < (tileX + effTileSizeX); indexX ++) {
+							i = offset + indexX * bpp;
+							for (int bppIndex = 0; bppIndex < bpp; bppIndex ++) {
+								buf[bufIndex] = bytesArr[i + bppIndex];
+								bufIndex ++;
+							}
+						}
+					}
+					// Write tile
+					imageWriter.saveBytes(0, buf, tileX, tileY, effTileSizeX, effTileSizeY);
+				}
+			}
+			
+		} catch (FormatException | IOException ex) {
+			throw new RuntimeException("Error while setting up image writer for file "
+					+ outFileName + ": " + ex.getMessage(), ex);
+		}
+		
+	}
+	
+	
+	
 	public static void main(String[] args) throws IOException {
 		//////////////////////////////////////////////////////////
 		// test histogram
@@ -674,12 +1048,18 @@ public class MaskOper {
 		//String maskFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\2400-Projections_Reconstructed-20200206T143154Z\\masks\\roiMasks\\interpolate\\");				
 		//String outputFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\2400-Projections_Reconstructed-20200206T143154Z\\masks\\roiFiltered\\");
 			
-		String inputRawFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\80_Projections_Reconstructed_SNR\\");
-		String maskFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\masks\\roiMasks\\interpolate\\");				
-		String outputFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\masks\\roiFiltered\\");
-	
-		MaskOper.applyMask_batch(inputRawFileFolder2, maskFileFolder2, outputFileFolder2);
+//		String inputRawFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\80_Projections_Reconstructed_SNR\\");
+//		String maskFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\masks\\roiMasks\\interpolate\\");				
+//		String outputFileFolder2 = new String("C:\\PeterB\\Projects\\Infer\\data2020-02-07\\80-Projections_Reconstructed-20200212T124205Z\\masks\\roiFiltered\\");
+//	
+//		MaskOper.applyMask_batch(inputRawFileFolder2, maskFileFolder2, outputFileFolder2);
 
+		// cryoEM project
+		String maskFileFolder2 = new String("C:\\PeterB\\Projects\\cryoEM\\Sample_Data\\reference_annotations\\pH4_1p5pcPEG_noRNA_Segmentations\\8BPP\\");				
+		String outputFileFolder2 = new String("C:\\PeterB\\Projects\\cryoEM\\Sample_Data\\reference_annotations\\pH4_1p5pcPEG_noRNA_Segmentations\\masks\\");
+		int fromValue = 254;
+		int toValue = 1;				
+		MaskOper.applySetValue_batch(maskFileFolder2, outputFileFolder2,fromValue, toValue);
 	}
 
 }
