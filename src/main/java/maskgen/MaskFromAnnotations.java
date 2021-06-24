@@ -926,8 +926,7 @@ public class MaskFromAnnotations {
 				// replace all spaces from the name
 				nameTIFF = nameTIFF.replaceAll("\\s", "");
 				nameTIFF = nameTIFF.substring(0, nameTIFF.length()-8); // TODO check what to remove, this case is for .tif or  .ome.tif
-				if(nameJSON.equalsIgnoreCase(nameTIFF)){
-					
+				if(nameJSON.equalsIgnoreCase(nameTIFF)){					
 					foundMatch = true;
 				}
 			}
@@ -1160,10 +1159,12 @@ public class MaskFromAnnotations {
 		inputSV.setRequired(true);
 		options.addOption(inputSV);
 
+		// int type
 		Option uniqueTypeOpt = new Option("t", "uniquetype", true, "unique type");
 		uniqueTypeOpt.setRequired(true);
 		options.addOption(uniqueTypeOpt);
 		
+		// boolean type
 		Option combineAU = new Option("c", "combineallunique", true, "combine all unique");
 		combineAU.setRequired(true);
 		options.addOption(combineAU);
@@ -1217,6 +1218,9 @@ public class MaskFromAnnotations {
 		}
 		
 		int uniqueType = Integer.parseInt(uniqueTypeStr);
+		if (uniqueType < 1 || uniqueType > 3) {
+			throw new IOException("uniqueType must be 1, 2, or 3 " + uniqueType);
+		}
 		boolean combineAllUnique = Boolean.parseBoolean(combineAllUniqueStr);
 			
 		boolean isMappingFixed = false;
